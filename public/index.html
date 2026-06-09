@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLB 模型查看器</title>
+    <style>
+        :root {
+            --bg: #111118;
+            --sidebar-bg: #161620;
+            --panel-bg: rgba(22, 22, 36, 0.94);
+            --text: #e2e2ea;
+            --text-secondary: #9090a8;
+            --text-dim: #606078;
+            --accent: #4fc3f7;
+            --accent-hover: #29b6f6;
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(255, 255, 255, 0.14);
+            --dropzone-bg: rgba(79, 195, 247, 0.06);
+            --dropzone-border: rgba(79, 195, 247, 0.35);
+            --danger: #ef5350;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+            --radius: 10px;
+            --radius-sm: 7px;
+            --sidebar-width: 300px;
+            --sidebar-collapsed: 0px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+        }
+
+        /* ============ Sidebar ============ */
+        #sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 30;
+            transition: width 0.25s ease, min-width 0.25s ease, opacity 0.25s;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            border-right: none;
+            opacity: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .sidebar-count {
+            font-size: 11px;
+            color: var(--text-dim);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .sidebar-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .sidebar-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--border-hover);
+            color: var(--text);
+        }
+
+        .sidebar-btn.primary {
+            background: var(--accent);
+            color: #0d0d1a;
+            border-color: var(--accent);
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .sidebar-btn.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .sidebar-search {
+            width: 100%;
+            padding: 7px 11px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .sidebar-search::placeholder { color: var(--text-dim); }
+        .sidebar-search:focus { border-color: var(--accent); }
+
+        .model-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 6px 0;
+        }
+
+        .model-list::-webkit-scrollbar { width: 4px; }
+        .model-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+        .model-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.12s;
+            border-left: 2px solid transparent;
+            white-space: nowrap;
+        }
+
+        .model-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .model-item.active {
+            background: rgba(79, 195, 247, 0.08);
+            border-left-color: var(--accent);
+        }
+
+        .model-item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .model-item-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .model-item-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .model-item-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .model-item-meta {
+            font-size: 11px;
+            color: var(--text-dim);
+            display: flex;
+            gap: 8px;
+        }
+
+        .model-item-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .sidebar-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-dim);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .sidebar-empty-icon { font-size: 44px; opacity: 0.5; }
+        .sidebar-empty-text { font-size: 13px; line-height: 1.6; }
+        .sidebar-empty-hint { font-size: 11px; color: var(--text-dim); }
+
+        /* ============ Main ============ */
+        #main-area {
+            flex: 1;
+            position: relative;
+            min-width: 0;
+        }
+
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+        }
+
+        canvas { display: block; }
+
+        /* ============ Sidebar Toggle ============ */
+        #sidebar-toggle {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 31;
+            width: 24px;
+            height: 56px;
+            border: 1px solid var(--border);
+            border-left: none;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        #sidebar-toggle:hover {
+            color: var(--text);
+            border-color: var(--border-hover);
+        }
+
+        /* ============ Top Bar ============ */
+        #topbar {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 7px 11px;
+            box-shadow: var(--shadow);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #topbar.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .topbar-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 12.5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+
+        .topbar-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border-hover);
+        }
+
+        .topbar-divider {
+            width: 1px;
+            height: 22px;
+            background: var(--border);
+            margin: 0 2px;
+        }
+
+        .topbar-filename {
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 0 4px;
+        }
+
+        /* ============ Floating Buttons ============ */
+        #float-btns {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .float-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .float-btn:hover {
+            color: var(--text);
+            border-color: var(--border-hover);
+        }
+
+        .float-btn.active {
+            background: rgba(79, 195, 247, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .float-btn.off {
+            opacity: 0.4;
+        }
+
+        /* ============ Empty State ============ */
+        #empty-state {
+            position: absolute;
+            inset: 0;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            pointer-events: none;
+        }
+
+        #empty-state.hidden { display: none; }
+
+        #empty-state .empty-icon { font-size: 72px; opacity: 0.6; }
+        #empty-state .empty-title { font-size: 20px; font-weight: 600; color: var(--text-secondary); }
+        #empty-state .empty-desc { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 360px; line-height: 1.6; }
+
+        /* ============ Info Panel ============ */
+        #info-panel {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 7px 15px;
+            box-shadow: var(--shadow);
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #info-panel.visible { opacity: 1; }
+
+        .info-item { display: flex; align-items: center; gap: 5px; }
+        .info-label { opacity: 0.55; }
+        .info-value { color: var(--text); font-weight: 500; }
+        .info-divider { width: 1px; height: 14px; background: var(--border); }
+
+        /* ============ Drop Zone ============ */
+        #dropzone {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        #dropzone.active { pointer-events: all; }
+
+        #dropzone-overlay {
+            position: absolute;
+            inset: 8px;
+            border: 3px dashed var(--dropzone-border);
+            border-radius: var(--radius);
+            background: var(--dropzone-bg);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        #dropzone.active #dropzone-overlay { opacity: 1; }
+
+        .drop-icon { font-size: 56px; }
+        .drop-text { font-size: 19px; font-weight: 600; color: var(--accent); }
+        .drop-sub { font-size: 13px; color: var(--text-secondary); }
+
+        /* ============ Loading ============ */
+        #loading {
+            position: absolute;
+            inset: 0;
+            z-index: 60;
+            background: rgba(17, 17, 24, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        #loading.visible { opacity: 1; pointer-events: all; }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(255,255,255,0.08);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { font-size: 14px; color: var(--text); }
+
+        .loading-progress {
+            width: 180px; height: 3px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress-bar {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* ============ Config Modal ============ */
+        #config-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        #config-overlay.visible { opacity: 1; pointer-events: all; }
+
+        #config-modal {
+            background: var(--sidebar-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 440px;
+            max-width: 90vw;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .config-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .config-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .config-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .config-input {
+            padding: 9px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            outline: none;
+        }
+
+        .config-input:focus { border-color: var(--accent); }
+        .config-input::placeholder { color: var(--text-dim); }
+
+        .config-hint {
+            font-size: 11px;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .config-hint code {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
+
+        .config-btn {
+            padding: 8px 20px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .config-btn:hover { background: rgba(255,255,255,0.05); }
+        .config-btn.accent {
+            background: var(--accent);
+            color: #0d0d1a;
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+        .config-btn.accent:hover { background: var(--accent-hover); }
+
+        /* ============ Toast ============ */
+        #toast {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-16px);
+            z-index: 200;
+            padding: 9px 22px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            background: var(--danger);
+            color: #fff;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s;
+            white-space: nowrap;
+            box-shadow: var(--shadow);
+        }
+
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast.success { background: var(--success); }
+        #toast.warning { background: var(--warning); color: #111; }
+
+        /* ============ Help ============ */
+        #help-hint {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            font-size: 11.5px;
+            color: var(--text-dim);
+            opacity: 0;
+            transition: opacity 0.8s;
+        }
+
+        #help-hint.show { opacity: 0.5; }
+
+        /* ============ Responsive ============ */
+        @media (max-width: 700px) {
+            #sidebar {
+                position: fixed;
+                left: 0; top: 0; bottom: 0;
+                box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            }
+            #sidebar.collapsed {
+                transform: translateX(-100%);
+                width: var(--sidebar-width);
+                min-width: var(--sidebar-width);
+                opacity: 1;
+                border-right: 1px solid var(--border);
+            }
+            #sidebar-toggle { left: 0; }
+            #float-btns { right: 8px; }
+            #topbar { top: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== SIDEBAR ==================== -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-header-row">
+                <span class="sidebar-title">📦 模型列表</span>
+                <span class="sidebar-count" id="sidebar-count">0 个</span>
+            </div>
+            <div class="sidebar-actions">
+                <input class="sidebar-search" id="search-input" placeholder="搜索模型..." />
+                <button class="sidebar-btn primary" id="btn-open-file" title="打开本地文件">+</button>
+                <button class="sidebar-btn" id="btn-config" title="配置">⚙</button>
+                <button class="sidebar-btn" id="btn-refresh" title="刷新列表">↻</button>
+            </div>
+        </div>
+        <div class="model-list" id="model-list">
+            <div class="sidebar-empty" id="sidebar-empty">
+                <div class="sidebar-empty-icon">📂</div>
+                <div class="sidebar-empty-text">还没有模型</div>
+                <div class="sidebar-empty-hint">
+                    点击 <b>⚙ 配置</b> 设置模型目录<br>
+                    拖拽文件到预览区直接查看
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN AREA ==================== -->
+    <div id="main-area">
+        <canvas-container id="canvas-container"></canvas-container>
+
+        <!-- Sidebar toggle -->
+        <button id="sidebar-toggle" title="折叠/展开">◀</button>
+
+        <!-- Empty state -->
+        <div id="empty-state">
+            <div class="empty-icon">🎨</div>
+            <div class="empty-title">选择一个模型开始查看</div>
+            <div class="empty-desc">从左侧列表选择模型，或拖拽 .glb/.gltf 文件到此处</div>
+        </div>
+
+        <!-- Top bar -->
+        <div id="topbar">
+            <span class="topbar-filename" id="filename-display">未加载</span>
+            <div class="topbar-divider"></div>
+            <button class="topbar-btn" id="btn-reset-camera">🔄 重置视角</button>
+            <button class="topbar-btn" id="btn-fit-view">🔍 适配窗口</button>
+            <button class="topbar-btn" id="btn-screenshot">📷 截图</button>
+        </div>
+
+        <!-- Float buttons -->
+        <div id="float-btns">
+            <button class="float-btn active" id="btn-wireframe" title="线框 (W)">◇</button>
+            <button class="float-btn active" id="btn-grid" title="网格 (G)">#</button>
+            <button class="float-btn" id="btn-auto-rotate" title="自动旋转 (A)">↻</button>
+        </div>
+
+        <!-- Info panel -->
+        <div id="info-panel">
+            <div class="info-item"><span class="info-label">顶点</span><span class="info-value" id="info-vertices">-</span></div>
+            <div class="info-divider"></div>
+            <div class="info-item"><span class="info-label">三角面</span><span class="info-value" id="info-triangles">-</span></div>
+            <div class="info-divider"></div>
+            <div class="info-item"><span class="info-label">网格</span><span class="info-value" id="info-meshes">-</span></div>
+            <div class="info-divider"></div>
+            <div class="info-item"><span class="info-label">大小</span><span class="info-value" id="info-size">-</span></div>
+        </div>
+
+        <!-- Drop zone -->
+        <div id="dropzone">
+            <div id="dropzone-overlay">
+                <div class="drop-icon">📦</div>
+                <div class="drop-text">松开鼠标加载模型</div>
+                <div class="drop-sub">支持 .glb / .gltf 格式</div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">加载模型中...</div>
+            <div class="loading-progress"><div class="loading-progress-bar" id="loading-bar"></div></div>
+        </div>
+
+        <!-- Help hint -->
+        <div id="help-hint">🖱 左键旋转 | 滚轮缩放 | 右键平移</div>
+    </div>
+
+    <!-- ==================== CONFIG MODAL ==================== -->
+    <div id="config-overlay">
+        <div id="config-modal">
+            <div class="config-title">⚙ 模型目录配置</div>
+
+            <div class="config-section">
+                <div class="config-label">模型列表 JSON URL</div>
+                <input class="config-input" id="config-models-url" placeholder="/api/models"
+                    value="/api/models" />
+                <div class="config-hint">
+                    模型列表 API 地址。Docker 部署默认使用内置 <code>/api/models</code>。如果用静态 JSON 文件，改为文件路径（如 <code>./models.json</code>）。
+                </div>
+            </div>
+
+            <div class="config-section">
+                <div class="config-label">模型文件基础路径</div>
+                <input class="config-input" id="config-base-path" placeholder=""
+                    value="" />
+                <div class="config-hint">
+                    Docker 部署时留空即可（API 返回的 URL 已是完整路径）。静态部署时填入模型文件所在的 Web 路径前缀。
+                </div>
+            </div>
+
+            <div class="config-section">
+                <div class="config-label">💡 部署提示</div>
+                <div class="config-hint">
+                    <b>Docker 部署</b>：把模型放入 <code>models/</code> 目录，执行 <code>docker compose up -d</code>，无需额外配置。<br><br>
+                    <b>静态部署</b>：运行 <code>python3 scan.py /模型目录 -u /models/</code> 生成 JSON，再将页面与 JSON 部署到同一 Web 目录。
+                </div>
+            </div>
+
+            <div class="config-actions">
+                <button class="config-btn" id="btn-config-cancel">取消</button>
+                <button class="config-btn accent" id="btn-config-save">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST & FILE INPUT ==================== -->
+    <div id="toast"></div>
+    <input type="file" id="file-input" accept=".glb,.gltf" style="display:none;">
+
+    <!-- ==================== THREE.JS ==================== -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.164.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+        // ============ DOM ============
+        const $ = (id) => document.getElementById(id);
+        const sidebar = $('sidebar');
+        const modelList = $('model-list');
+        const sidebarEmpty = $('sidebar-empty');
+        const sidebarCount = $('sidebar-count');
+        const searchInput = $('search-input');
+        const container = $('canvas-container');
+        const emptyState = $('empty-state');
+        const topbar = $('topbar');
+        const infoPanel = $('info-panel');
+        const helpHint = $('help-hint');
+        const loading = $('loading');
+        const loadingBar = $('loading-bar');
+        const toast = $('toast');
+        const fileInput = $('file-input');
+        const filenameDisplay = $('filename-display');
+        const configOverlay = $('config-overlay');
+        const dropzone = $('dropzone');
+
+        // ============ STATE ============
+        const STORAGE_KEY = 'glb_viewer_config';
+        let config = {
+            modelsUrl: '/api/models',
+            basePath: '',
+        };
+        let models = [];
+        let currentModelId = null;
+        let currentModel = null;
+        let showWireframe = false;
+        let showGrid = true;
+        let autoRotate = false;
+        let sidebarOpen = true;
+
+        // Load config from localStorage
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                config = { ...config, ...parsed };
+            }
+        } catch (_) {}
+
+        // Populate config fields
+        $('config-models-url').value = config.modelsUrl;
+        $('config-base-path').value = config.basePath;
+
+        // ============ THREE.JS ============
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#111118');
+        scene.fog = new THREE.Fog('#111118', 5, 60);
+
+        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+        camera.position.set(4, 2.5, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        function resizeRenderer() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / Math.max(h, 1);
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+        resizeRenderer();
+        window.addEventListener('resize', resizeRenderer);
+
+        // Lights
+        scene.add(new THREE.AmbientLight('#ffffff', 0.6));
+        const keyLight = new THREE.DirectionalLight('#ffffff', 4);
+        keyLight.position.set(5, 8, 5);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(2048, 2048);
+        keyLight.shadow.camera.near = 0.5;
+        keyLight.shadow.camera.far = 50;
+        keyLight.shadow.camera.left = -10;
+        keyLight.shadow.camera.right = 10;
+        keyLight.shadow.camera.top = 10;
+        keyLight.shadow.camera.bottom = -10;
+        keyLight.shadow.bias = -0.0001;
+        scene.add(keyLight);
+        scene.add(new THREE.DirectionalLight('#8ec8f2', 1.5)).position.set(-3, 2, -3);
+        scene.add(new THREE.DirectionalLight('#ffffff', 1.5)).position.set(0, 1, -5);
+        scene.add(new THREE.HemisphereLight('#b1e1ff', '#111118', 0.8));
+
+        // Ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 20),
+            new THREE.ShadowMaterial({ opacity: 0.25 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Grid
+        const grid = new THREE.GridHelper(10, 20, '#2a2a44', '#181830');
+        scene.add(grid);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.target.set(0, 0.5, 0);
+        controls.minDistance = 0.3;
+        controls.maxDistance = 20;
+        controls.maxPolarAngle = Math.PI * 0.75;
+        controls.update();
+
+        // Loaders
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+        const gltfLoader = new GLTFLoader();
+        gltfLoader.setDRACOLoader(dracoLoader);
+
+        // Simple env map
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        const envScene = new THREE.Scene();
+        envScene.background = new THREE.Color('#87CEEB');
+        envScene.add(new THREE.DirectionalLight('#ffffff', 3)).position.set(0, 5, 0);
+        envScene.add(new THREE.AmbientLight('#ffffff', 1));
+        scene.environment = pmremGenerator.fromScene(envScene, 0.04).texture;
+
+        // ============ FUNCTIONS ============
+        function showToast(msg, type = 'error') {
+            toast.textContent = msg;
+            toast.className = type === 'success' ? 'show success' : type === 'warning' ? 'show warning' : 'show';
+            clearTimeout(toast._timeout);
+            toast._timeout = setTimeout(() => { toast.className = ''; }, 3000);
+        }
+
+        function showLoading() {
+            loading.classList.add('visible');
+            loadingBar.style.width = '0%';
+        }
+
+        function hideLoading() {
+            loading.classList.remove('visible');
+        }
+
+        function fmtSize(bytes) {
+            if (!bytes && bytes !== 0) return '-';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function fmtNum(n) {
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return String(n);
+        }
+
+        function computeModelStats(model) {
+            let vertices = 0, triangles = 0, meshes = 0;
+            model.traverse((c) => {
+                if (c.isMesh) {
+                    meshes++;
+                    const g = c.geometry;
+                    if (g.index) {
+                        vertices += g.index.count;
+                        triangles += Math.floor(g.index.count / 3);
+                    } else if (g.attributes.position) {
+                        vertices += g.attributes.position.count;
+                        triangles += Math.floor(g.attributes.position.count / 3);
+                    }
+                }
+            });
+            return { vertices, triangles, meshes };
+        }
+
+        function computeBounding(model) {
+            const box = new THREE.Box3().setFromObject(model);
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            box.getCenter(center);
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            return { center, size, maxDim, radius: maxDim / 2 };
+        }
+
+        function disposeModel(model) {
+            model.traverse((c) => {
+                if (c.isMesh) {
+                    c.geometry?.dispose();
+                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                    mats.forEach((m) => {
+                        for (const k of Object.keys(m)) {
+                            if (m[k]?.isTexture) m[k].dispose();
+                        }
+                        m.dispose();
+                    });
+                }
+            });
+        }
+
+        function applyWireframe(model, on) {
+            model.traverse((c) => {
+                if (c.isMesh && c.material) {
+                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                    mats.forEach((m) => { m.wireframe = on; });
+                }
+            });
+        }
+
+        function placeModel(model) {
+            const { center, maxDim } = computeBounding(model);
+            model.position.set(-center.x, -center.y, -center.z);
+            const scale = 3 / maxDim;
+            model.scale.setScalar(scale);
+            model.traverse((c) => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                }
+            });
+            applyWireframe(model, showWireframe);
+        }
+
+        function resetCamera() {
+            if (!currentModel) return;
+            const { center, maxDim } = computeBounding(currentModel);
+            const s = currentModel.scale.x;
+            controls.target.set(0, center.y * s, 0);
+            camera.position.set(maxDim * s * 0.8, maxDim * s * 0.5, maxDim * s * 0.8);
+            controls.update();
+        }
+
+        function fitView() {
+            if (!currentModel) return;
+            const { center, maxDim } = computeBounding(currentModel);
+            const s = currentModel.scale.x;
+            controls.target.set(0, center.y * s, 0);
+            camera.position.set(0, maxDim * s * 0.1, maxDim * s * 1.2);
+            controls.update();
+        }
+
+        function screenshot() {
+            renderer.render(scene, camera);
+            const a = document.createElement('a');
+            a.href = renderer.domElement.toDataURL('image/png');
+            a.download = 'glb-screenshot.png';
+            a.click();
+            showToast('截图已保存', 'success');
+        }
+
+        function loadModel(url, name, size) {
+            showLoading();
+            gltfLoader.load(
+                url,
+                (gltf) => {
+                    if (currentModel) {
+                        scene.remove(currentModel);
+                        disposeModel(currentModel);
+                    }
+                    currentModel = gltf.scene;
+                    placeModel(currentModel);
+                    scene.add(currentModel);
+                    resetCamera();
+                    controls.autoRotate = autoRotate;
+
+                    // UI
+                    emptyState.classList.add('hidden');
+                    topbar.classList.add('visible');
+                    infoPanel.classList.add('visible');
+                    filenameDisplay.textContent = name || '模型';
+                    helpHint.classList.add('show');
+                    setTimeout(() => helpHint.classList.remove('show'), 5000);
+
+                    // Stats
+                    const stats = computeModelStats(currentModel);
+                    $('info-vertices').textContent = fmtNum(stats.vertices);
+                    $('info-triangles').textContent = fmtNum(stats.triangles);
+                    $('info-meshes').textContent = stats.meshes;
+                    $('info-size').textContent = fmtSize(size);
+
+                    hideLoading();
+                },
+                (p) => {
+                    if (p.total > 0) loadingBar.style.width = Math.round(p.loaded / p.total * 100) + '%';
+                },
+                (err) => {
+                    hideLoading();
+                    console.error(err);
+                    showToast('加载失败: ' + (err.message || '未知错误'));
+                }
+            );
+        }
+
+        function loadModelFromFile(file) {
+            if (!file) return;
+            const ext = file.name.split('.').pop()?.toLowerCase();
+            if (!['glb', 'gltf'].includes(ext)) {
+                showToast('不支持的文件格式，仅支持 .glb 和 .gltf');
+                return;
+            }
+            const url = URL.createObjectURL(file);
+            loadModel(url, file.name, file.size);
+            // Clean blob URL after load
+            setTimeout(() => {
+                try { URL.revokeObjectURL(url); } catch (_) {}
+            }, 5000);
+        }
+
+        // ============ SIDEBAR ============
+        function buildModelUrl(model) {
+            if (model.url.startsWith('http://') || model.url.startsWith('https://') || model.url.startsWith('blob:')) {
+                return model.url;
+            }
+            const base = config.basePath || './';
+            return base.replace(/\/?$/, '/') + model.url.replace(/^\//, '');
+        }
+
+        function selectModel(model) {
+            currentModelId = model.id;
+            document.querySelectorAll('.model-item').forEach((el) => el.classList.remove('active'));
+            const el = document.querySelector(`.model-item[data-id="${model.id}"]`);
+            if (el) el.classList.add('active');
+            loadModel(buildModelUrl(model), model.name || model.filename, model.size);
+            // Mobile: auto-close sidebar
+            if (window.innerWidth <= 700) toggleSidebar(false);
+        }
+
+        function renderModelList(filter = '') {
+            const q = filter.toLowerCase();
+            const filtered = models.filter((m) => {
+                if (!q) return true;
+                return (m.name || '').toLowerCase().includes(q) ||
+                    (m.filename || '').toLowerCase().includes(q);
+            });
+
+            // Clear list
+            modelList.querySelectorAll('.model-item').forEach((el) => el.remove());
+
+            if (filtered.length === 0) {
+                sidebarEmpty.style.display = 'flex';
+                sidebarEmpty.querySelector('.sidebar-empty-icon').textContent = q ? '🔍' : '📂';
+                sidebarEmpty.querySelector('.sidebar-empty-text').textContent = q ? '没有匹配的模型' : '还没有模型';
+                sidebarEmpty.querySelector('.sidebar-empty-hint').textContent = q ? '' : '点击 ⚙ 配置设置模型目录';
+            } else {
+                sidebarEmpty.style.display = 'none';
+            }
+
+            filtered.forEach((m) => {
+                const div = document.createElement('div');
+                div.className = 'model-item';
+                if (m.id === currentModelId) div.classList.add('active');
+                div.setAttribute('data-id', m.id);
+                div.innerHTML = `
+                    <div class="model-item-icon">${m.ext === '.glb' ? '🧊' : '📐'}</div>
+                    <div class="model-item-info">
+                        <div class="model-item-name">${m.name || m.filename}</div>
+                        <div class="model-item-meta">
+                            <span>${m.sizeFormatted || fmtSize(m.size)}</span>
+                            <span class="model-item-badge">${(m.ext || '').replace('.', '').toUpperCase()}</span>
+                        </div>
+                    </div>
+                `;
+                div.addEventListener('click', () => selectModel(m));
+                modelList.appendChild(div);
+            });
+
+            sidebarCount.textContent = filtered.length + ' 个';
+        }
+
+        async function fetchModelList() {
+            if (!config.modelsUrl) return;
+            try {
+                const resp = await fetch(config.modelsUrl);
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const data = await resp.json();
+                models = data.models || [];
+                renderModelList(searchInput.value);
+                showToast(`已加载 ${models.length} 个模型`, 'success');
+            } catch (err) {
+                console.warn('无法加载模型列表:', err.message);
+                // Don't show error on initial load
+                if (sidebarEmpty.style.display !== 'none') {
+                    // Silent fail on first load
+                }
+            }
+        }
+
+        // ============ CONFIG MODAL ============
+        function openConfig() {
+            $('config-models-url').value = config.modelsUrl;
+            $('config-base-path').value = config.basePath;
+            configOverlay.classList.add('visible');
+        }
+
+        function closeConfig() {
+            configOverlay.classList.remove('visible');
+        }
+
+        function saveConfig() {
+            config.modelsUrl = $('config-models-url').value.trim() || './models.json';
+            config.basePath = $('config-base-path').value.trim() || './';
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+            closeConfig();
+            showToast('配置已保存，正在加载模型列表...', 'success');
+            fetchModelList();
+        }
+
+        function toggleSidebar(force) {
+            sidebarOpen = typeof force === 'boolean' ? force : !sidebarOpen;
+            if (sidebarOpen) {
+                sidebar.classList.remove('collapsed');
+                $('sidebar-toggle').textContent = '◀';
+            } else {
+                sidebar.classList.add('collapsed');
+                $('sidebar-toggle').textContent = '▶';
+            }
+        }
+
+        // ============ EVENT LISTENERS ============
+        // Sidebar toggle
+        $('sidebar-toggle').addEventListener('click', () => toggleSidebar());
+
+        // Config
+        $('btn-config').addEventListener('click', openConfig);
+        $('btn-config-cancel').addEventListener('click', closeConfig);
+        $('btn-config-save').addEventListener('click', saveConfig);
+        configOverlay.addEventListener('click', (e) => {
+            if (e.target === configOverlay) closeConfig();
+        });
+
+        // Refresh
+        $('btn-refresh').addEventListener('click', async () => {
+            showToast('正在刷新列表...', 'warning');
+            // 清除服务端缓存
+            try { await fetch('/api/refresh', { method: 'POST' }); } catch (_) {}
+            fetchModelList();
+        });
+
+        // Open file
+        $('btn-open-file').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const f = e.target.files?.[0];
+            if (f) loadModelFromFile(f);
+            fileInput.value = '';
+        });
+
+        // Search
+        searchInput.addEventListener('input', () => renderModelList(searchInput.value));
+
+        // Toolbar
+        $('btn-reset-camera').addEventListener('click', resetCamera);
+        $('btn-fit-view').addEventListener('click', fitView);
+        $('btn-screenshot').addEventListener('click', screenshot);
+
+        // Float buttons
+        $('btn-wireframe').addEventListener('click', function () {
+            showWireframe = !showWireframe;
+            this.classList.toggle('active', !showWireframe);
+            if (currentModel) applyWireframe(currentModel, showWireframe);
+        });
+
+        $('btn-grid').addEventListener('click', function () {
+            showGrid = !showGrid;
+            this.classList.toggle('active', !showGrid);
+            grid.visible = showGrid;
+            ground.visible = showGrid;
+        });
+
+        $('btn-auto-rotate').addEventListener('click', function () {
+            autoRotate = !autoRotate;
+            this.classList.toggle('active', autoRotate);
+            controls.autoRotate = autoRotate;
+        });
+
+        // Drag & Drop
+        let dragCount = 0;
+        document.addEventListener('dragenter', (e) => { e.preventDefault(); dragCount++; dropzone.classList.add('active'); });
+        document.addEventListener('dragleave', (e) => { e.preventDefault(); dragCount--; if (dragCount <= 0) { dragCount = 0; dropzone.classList.remove('active'); } });
+        document.addEventListener('dragover', (e) => { e.preventDefault(); });
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCount = 0;
+            dropzone.classList.remove('active');
+            const f = e.dataTransfer?.files?.[0];
+            if (f) loadModelFromFile(f);
+        });
+
+        // Paste
+        document.addEventListener('paste', (e) => {
+            for (const item of e.clipboardData?.items || []) {
+                if (item.kind === 'file') {
+                    const f = item.getAsFile();
+                    if (f.name.match(/\.(glb|gltf)$/i)) {
+                        loadModelFromFile(f);
+                        return;
+                    }
+                }
+            }
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            switch (e.key.toLowerCase()) {
+                case 'b': toggleSidebar(); break;
+                case 'r': resetCamera(); break;
+                case 's': screenshot(); break;
+                case 'w':
+                    showWireframe = !showWireframe;
+                    $('btn-wireframe').classList.toggle('active', !showWireframe);
+                    if (currentModel) applyWireframe(currentModel, showWireframe);
+                    break;
+                case 'g':
+                    showGrid = !showGrid;
+                    $('btn-grid').classList.toggle('active', !showGrid);
+                    grid.visible = showGrid;
+                    ground.visible = showGrid;
+                    break;
+                case 'a':
+                    autoRotate = !autoRotate;
+                    $('btn-auto-rotate').classList.toggle('active', autoRotate);
+                    controls.autoRotate = autoRotate;
+                    break;
+                case 'f': fitView(); break;
+            }
+        });
+
+        // ============ RENDER ============
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ============ INIT ============
+        // Auto-load model list on start
+        fetchModelList();
+
+        // URL param
+        const urlParams = new URLSearchParams(location.search);
+        const modelParam = urlParams.get('model');
+        if (modelParam) {
+            const name = modelParam.split('/').pop() || 'model.glb';
+            loadModel(modelParam, name);
+        }
+
+        console.log('🚀 GLB 模型查看器 v2 已就绪');
+        console.log('   B=侧边栏 R=重置 S=截图 W=线框 G=网格 A=旋转 F=适配');
+    </script>
+</body>
+</html>
