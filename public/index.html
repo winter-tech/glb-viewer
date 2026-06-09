@@ -911,8 +911,8 @@
         const scene = new THREE.Scene();
         scene.background = new THREE.Color('#111118');
 
-        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-        camera.position.set(0, 0, 4);
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+        camera.position.set(0, 0, 5);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -1129,11 +1129,14 @@
         }
 
         function placeModel(model) {
-            const { center, maxDim } = computeBounding(model);
+            const { center, size, maxDim } = computeBounding(model);
             // Center the model within the pivot group
             model.position.set(-center.x, -center.y, -center.z);
-            // Scale model to a reasonable size
-            const scale = 3 / maxDim;
+            // Scale model so it fills ~70% of the viewport
+            // With FOV=45, distance=5, visible height at z=0 ≈ 2*5*tan(22.5°) ≈ 4.14
+            const viewHeight = 2 * 5 * Math.tan((45 / 2) * Math.PI / 180);
+            const targetSize = viewHeight * 0.7; // model fills 70% of view
+            const scale = maxDim > 0 ? targetSize / maxDim : 1;
             modelBaseScale = scale;
             pivot.scale.setScalar(scale);
             // Reset rotation
