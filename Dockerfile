@@ -5,7 +5,7 @@ FROM node:22-alpine
 
 LABEL org.opencontainers.image.title="GLB Model Viewer"
 LABEL org.opencontainers.image.description="A web-based GLB/GLTF 3D model viewer with model list browsing"
-LABEL org.opencontainers.image.url="https://github.com/yourname/glb-viewer"
+LABEL org.opencontainers.image.url="https://github.com/winter-tech/glb-viewer"
 
 # 创建非 root 用户
 RUN addgroup -g 1001 -S appgroup && \

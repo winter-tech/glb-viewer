@@ -1,33 +1,29 @@
 # ========================================
 # GLB 模型查看器 - Docker Compose 部署
 # ========================================
-# 使用方法:
-#   1. 将 .glb / .gltf 模型文件放入 ./models/ 目录
+# 使用方法（极空间 / 群晖 / 通用）:
+#   1. 编辑下方 models 挂载路径，改成你放 .glb 模型的目录
 #   2. docker compose up -d
-#   3. 浏览器访问 http://localhost:8080
+#   3. 浏览器访问 http://你的NAS_IP:8080
+#
+# 镜像会自动从 GitHub Container Registry 拉取
+# 无需本地构建、无需 Dockerfile
 # ========================================
 
 services:
   glb-viewer:
-    build: .
-    # 如果需要直接使用预构建镜像，取消下面注释并注释掉 build
-    # image: your-registry/glb-viewer:latest
+    image: ghcr.io/winter-tech/glb-viewer:latest
     container_name: glb-viewer
     restart: unless-stopped
     ports:
       - "8080:3000"
     volumes:
-      # 将本地的 models/ 目录挂载到容器内
+      # 🔧 改成你放 .glb / .gltf 模型文件的实际目录
+      # 极空间示例: /zspace/共享文件夹/3D模型:/app/models:ro
+      # 群晖示例:   /volume1/models:/app/models:ro
+      # 通用示例:   ./models:/app/models:ro
       - ./models:/app/models:ro
     environment:
-      # 服务端口（容器内部）
       - PORT=3000
-      # 模型目录（容器内部路径，一般不需要改）
       - MODELS_DIR=/app/models
-      # 模型列表缓存时间（秒），设为 0 表示每次请求都扫描
       - CACHE_TTL=30
-    # 资源限制（可选）
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 512M
