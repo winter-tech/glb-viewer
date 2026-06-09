@@ -25,7 +25,6 @@
             --radius: 10px;
             --radius-sm: 7px;
             --sidebar-width: 300px;
-            --sidebar-collapsed: 0px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -258,6 +257,7 @@
         #canvas-container {
             position: absolute;
             inset: 0;
+            touch-action: none;
         }
 
         canvas { display: block; }
@@ -337,6 +337,12 @@
             border-color: var(--border-hover);
         }
 
+        .topbar-btn.active {
+            background: rgba(79, 195, 247, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         .topbar-divider {
             width: 1px;
             height: 22px;
@@ -354,48 +360,62 @@
             padding: 0 4px;
         }
 
-        /* ============ Floating Buttons ============ */
-        #float-btns {
+        /* ============ Animation Bar ============ */
+        #anim-bar {
             position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 20;
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .float-btn {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: 1px solid var(--border);
+            align-items: center;
+            gap: 8px;
             background: var(--panel-bg);
             backdrop-filter: blur(12px);
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.15s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 7px 14px;
+            box-shadow: var(--shadow);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
         }
 
-        .float-btn:hover {
+        #anim-bar.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .anim-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 7px 16px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: transparent;
             color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .anim-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
             border-color: var(--border-hover);
         }
 
-        .float-btn.active {
+        .anim-btn.playing {
             background: rgba(79, 195, 247, 0.15);
             border-color: var(--accent);
             color: var(--accent);
         }
 
-        .float-btn.off {
-            opacity: 0.4;
+        .anim-label {
+            font-size: 12px;
+            color: var(--text-dim);
         }
 
         /* ============ Empty State ============ */
@@ -420,7 +440,7 @@
         /* ============ Info Panel ============ */
         #info-panel {
             position: absolute;
-            bottom: 14px;
+            bottom: 70px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 20;
@@ -657,7 +677,7 @@
         /* ============ Help ============ */
         #help-hint {
             position: absolute;
-            bottom: 60px;
+            bottom: 120px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 15;
@@ -665,6 +685,7 @@
             color: var(--text-dim);
             opacity: 0;
             transition: opacity 0.8s;
+            text-align: center;
         }
 
         #help-hint.show { opacity: 0.5; }
@@ -684,7 +705,6 @@
                 border-right: 1px solid var(--border);
             }
             #sidebar-toggle { left: 0; }
-            #float-btns { right: 8px; }
             #topbar { top: 8px; }
         }
     </style>
@@ -719,7 +739,7 @@
 
     <!-- ==================== MAIN AREA ==================== -->
     <div id="main-area">
-        <canvas-container id="canvas-container"></canvas-container>
+        <div id="canvas-container"></div>
 
         <!-- Sidebar toggle -->
         <button id="sidebar-toggle" title="折叠/展开">◀</button>
@@ -735,16 +755,7 @@
         <div id="topbar">
             <span class="topbar-filename" id="filename-display">未加载</span>
             <div class="topbar-divider"></div>
-            <button class="topbar-btn" id="btn-reset-camera">🔄 重置视角</button>
-            <button class="topbar-btn" id="btn-fit-view">🔍 适配窗口</button>
             <button class="topbar-btn" id="btn-screenshot">📷 截图</button>
-        </div>
-
-        <!-- Float buttons -->
-        <div id="float-btns">
-            <button class="float-btn active" id="btn-wireframe" title="线框 (W)">◇</button>
-            <button class="float-btn active" id="btn-grid" title="网格 (G)">#</button>
-            <button class="float-btn" id="btn-auto-rotate" title="自动旋转 (A)">↻</button>
         </div>
 
         <!-- Info panel -->
@@ -756,6 +767,13 @@
             <div class="info-item"><span class="info-label">网格</span><span class="info-value" id="info-meshes">-</span></div>
             <div class="info-divider"></div>
             <div class="info-item"><span class="info-label">大小</span><span class="info-value" id="info-size">-</span></div>
+        </div>
+
+        <!-- Animation bar -->
+        <div id="anim-bar">
+            <span class="anim-label" id="anim-info">0 个动画</span>
+            <button class="anim-btn" id="btn-anim-play">▶ 播放</button>
+            <button class="anim-btn" id="btn-anim-stop">⏹ 停止</button>
         </div>
 
         <!-- Drop zone -->
@@ -775,7 +793,7 @@
         </div>
 
         <!-- Help hint -->
-        <div id="help-hint">🖱 左键旋转 | 滚轮缩放 | 右键平移</div>
+        <div id="help-hint">🖱 拖动旋转 | 滚轮缩放 | 触摸双指缩放</div>
     </div>
 
     <!-- ==================== CONFIG MODAL ==================== -->
@@ -832,7 +850,6 @@
 
     <script type="module">
         import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
@@ -855,6 +872,7 @@
         const filenameDisplay = $('filename-display');
         const configOverlay = $('config-overlay');
         const dropzone = $('dropzone');
+        const animBar = $('anim-bar');
 
         // ============ STATE ============
         const STORAGE_KEY = 'glb_viewer_config';
@@ -865,10 +883,16 @@
         let models = [];
         let currentModelId = null;
         let currentModel = null;
-        let showWireframe = false;
-        let showGrid = true;
-        let autoRotate = false;
         let sidebarOpen = true;
+
+        // Animation state
+        let mixer = null;
+        let animationActions = [];
+        let isAnimating = false;
+        const clock = new THREE.Clock();
+
+        // Model base scale (set when model is placed)
+        let modelBaseScale = 1;
 
         // Load config from localStorage
         try {
@@ -886,10 +910,10 @@
         // ============ THREE.JS ============
         const scene = new THREE.Scene();
         scene.background = new THREE.Color('#111118');
-        scene.fog = new THREE.Fog('#111118', 5, 60);
 
         const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-        camera.position.set(4, 2.5, 5);
+        camera.position.set(0, 0.8, 4);
+        camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -927,29 +951,9 @@
         scene.add(new THREE.DirectionalLight('#ffffff', 1.5)).position.set(0, 1, -5);
         scene.add(new THREE.HemisphereLight('#b1e1ff', '#111118', 0.8));
 
-        // Ground
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(20, 20),
-            new THREE.ShadowMaterial({ opacity: 0.25 })
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -0.01;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        // Grid
-        const grid = new THREE.GridHelper(10, 20, '#2a2a44', '#181830');
-        scene.add(grid);
-
-        // Controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.target.set(0, 0.5, 0);
-        controls.minDistance = 0.3;
-        controls.maxDistance = 20;
-        controls.maxPolarAngle = Math.PI * 0.75;
-        controls.update();
+        // Pivot group - model is added here, we rotate/scale the pivot
+        const pivot = new THREE.Group();
+        scene.add(pivot);
 
         // Loaders
         const dracoLoader = new DRACOLoader();
@@ -964,6 +968,96 @@
         envScene.add(new THREE.DirectionalLight('#ffffff', 3)).position.set(0, 5, 0);
         envScene.add(new THREE.AmbientLight('#ffffff', 1));
         scene.environment = pmremGenerator.fromScene(envScene, 0.04).texture;
+
+        // ============ POINTER INTERACTION ============
+        let isDragging = false;
+        let prevPointer = { x: 0, y: 0 };
+
+        // For pinch zoom
+        let initialPinchDistance = 0;
+        let initialScale = 1;
+        let isPinching = false;
+
+        container.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
+                isDragging = true;
+                prevPointer = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        container.addEventListener('pointermove', (e) => {
+            if (!isDragging || !currentModel) return;
+            const dx = e.clientX - prevPointer.x;
+            const dy = e.clientY - prevPointer.y;
+            rotateModel(dx, dy);
+            prevPointer = { x: e.clientX, y: e.clientY };
+        });
+
+        container.addEventListener('pointerup', () => { isDragging = false; });
+        container.addEventListener('pointercancel', () => { isDragging = false; });
+
+        // Touch events for single-finger rotate and pinch zoom
+        container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && currentModel) {
+                isDragging = false;
+                isPinching = true;
+                initialPinchDistance = getTouchDistance(e.touches);
+                initialScale = modelBaseScale;
+            } else if (e.touches.length === 1) {
+                isDragging = true;
+                prevPointer = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            if (isPinching && e.touches.length === 2 && currentModel) {
+                e.preventDefault();
+                const dist = getTouchDistance(e.touches);
+                const scale = initialScale * (dist / initialPinchDistance);
+                modelBaseScale = scale;
+                pivot.scale.setScalar(scale);
+            } else if (isDragging && e.touches.length === 1 && currentModel) {
+                const dx = e.touches[0].clientX - prevPointer.x;
+                const dy = e.touches[0].clientY - prevPointer.y;
+                rotateModel(dx, dy);
+                prevPointer = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        }, { passive: false });
+
+        container.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) isPinching = false;
+            if (e.touches.length === 0) isDragging = false;
+        });
+
+        // Scroll to zoom
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (!currentModel) return;
+            const factor = e.deltaY > 0 ? 0.93 : 1.07;
+            modelBaseScale = Math.max(0.1, Math.min(20, modelBaseScale * factor));
+            pivot.scale.setScalar(modelBaseScale);
+        }, { passive: false });
+
+        function getTouchDistance(touches) {
+            return Math.hypot(
+                touches[0].clientX - touches[1].clientX,
+                touches[0].clientY - touches[1].clientY
+            );
+        }
+
+        function rotateModel(dx, dy) {
+            if (!currentModel) return;
+            // Rotate around world Y for horizontal drag, world X for vertical drag
+            const sensitivity = 0.006;
+            const qY = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(0, 1, 0), dx * sensitivity
+            );
+            const qX = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(1, 0, 0), dy * sensitivity
+            );
+            pivot.quaternion.premultiply(qY);
+            pivot.quaternion.premultiply(qX);
+        }
 
         // ============ FUNCTIONS ============
         function showToast(msg, type = 'error') {
@@ -1038,45 +1132,26 @@
             });
         }
 
-        function applyWireframe(model, on) {
-            model.traverse((c) => {
-                if (c.isMesh && c.material) {
-                    const mats = Array.isArray(c.material) ? c.material : [c.material];
-                    mats.forEach((m) => { m.wireframe = on; });
-                }
-            });
-        }
-
         function placeModel(model) {
             const { center, maxDim } = computeBounding(model);
+            // Center the model within the pivot group
             model.position.set(-center.x, -center.y, -center.z);
+            // Scale model to a reasonable size
             const scale = 3 / maxDim;
-            model.scale.setScalar(scale);
+            modelBaseScale = scale;
+            pivot.scale.setScalar(scale);
+            // Reset rotation
+            pivot.quaternion.identity();
+            pivot.position.set(0, 0, 0);
+            // Add to pivot
+            pivot.add(model);
+            // Enable shadows
             model.traverse((c) => {
                 if (c.isMesh) {
                     c.castShadow = true;
                     c.receiveShadow = true;
                 }
             });
-            applyWireframe(model, showWireframe);
-        }
-
-        function resetCamera() {
-            if (!currentModel) return;
-            const { center, maxDim } = computeBounding(currentModel);
-            const s = currentModel.scale.x;
-            controls.target.set(0, center.y * s, 0);
-            camera.position.set(maxDim * s * 0.8, maxDim * s * 0.5, maxDim * s * 0.8);
-            controls.update();
-        }
-
-        function fitView() {
-            if (!currentModel) return;
-            const { center, maxDim } = computeBounding(currentModel);
-            const s = currentModel.scale.x;
-            controls.target.set(0, center.y * s, 0);
-            camera.position.set(0, maxDim * s * 0.1, maxDim * s * 1.2);
-            controls.update();
         }
 
         function screenshot() {
@@ -1088,20 +1163,66 @@
             showToast('截图已保存', 'success');
         }
 
+        // ============ ANIMATION ============
+        function setupAnimations(gltf) {
+            // Clean up previous
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            animationActions = [];
+            isAnimating = false;
+
+            if (!gltf.animations || gltf.animations.length === 0) {
+                animBar.classList.remove('visible');
+                return;
+            }
+
+            mixer = new THREE.AnimationMixer(gltf.scene);
+            gltf.animations.forEach((clip) => {
+                const action = mixer.clipAction(clip);
+                animationActions.push(action);
+            });
+
+            $('anim-info').textContent = gltf.animations.length + ' 个动画';
+            $('btn-anim-play').classList.remove('playing');
+            $('btn-anim-stop').classList.remove('playing');
+            animBar.classList.add('visible');
+        }
+
+        function playAnimation() {
+            if (animationActions.length === 0) return;
+            animationActions.forEach((action) => {
+                action.reset();
+                action.play();
+            });
+            isAnimating = true;
+            $('btn-anim-play').classList.add('playing');
+            $('btn-anim-stop').classList.remove('playing');
+        }
+
+        function stopAnimation() {
+            if (!mixer) return;
+            mixer.stopAllAction();
+            isAnimating = false;
+            $('btn-anim-play').classList.remove('playing');
+            $('btn-anim-stop').classList.add('playing');
+        }
+
         function loadModel(url, name, size) {
             showLoading();
             gltfLoader.load(
                 url,
                 (gltf) => {
                     if (currentModel) {
-                        scene.remove(currentModel);
+                        pivot.remove(currentModel);
                         disposeModel(currentModel);
                     }
                     currentModel = gltf.scene;
                     placeModel(currentModel);
-                    scene.add(currentModel);
-                    resetCamera();
-                    controls.autoRotate = autoRotate;
+
+                    // Setup animations
+                    setupAnimations(gltf);
 
                     // UI
                     emptyState.classList.add('hidden');
@@ -1140,7 +1261,6 @@
             }
             const url = URL.createObjectURL(file);
             loadModel(url, file.name, file.size);
-            // Clean blob URL after load
             setTimeout(() => {
                 try { URL.revokeObjectURL(url); } catch (_) {}
             }, 5000);
@@ -1161,7 +1281,6 @@
             const el = document.querySelector(`.model-item[data-id="${model.id}"]`);
             if (el) el.classList.add('active');
             loadModel(buildModelUrl(model), model.name || model.filename, model.size);
-            // Mobile: auto-close sidebar
             if (window.innerWidth <= 700) toggleSidebar(false);
         }
 
@@ -1173,7 +1292,6 @@
                     (m.filename || '').toLowerCase().includes(q);
             });
 
-            // Clear list
             modelList.querySelectorAll('.model-item').forEach((el) => el.remove());
 
             if (filtered.length === 0) {
@@ -1218,10 +1336,6 @@
                 showToast(`已加载 ${models.length} 个模型`, 'success');
             } catch (err) {
                 console.warn('无法加载模型列表:', err.message);
-                // Don't show error on initial load
-                if (sidebarEmpty.style.display !== 'none') {
-                    // Silent fail on first load
-                }
             }
         }
 
@@ -1257,10 +1371,8 @@
         }
 
         // ============ EVENT LISTENERS ============
-        // Sidebar toggle
         $('sidebar-toggle').addEventListener('click', () => toggleSidebar());
 
-        // Config
         $('btn-config').addEventListener('click', openConfig);
         $('btn-config-cancel').addEventListener('click', closeConfig);
         $('btn-config-save').addEventListener('click', saveConfig);
@@ -1268,15 +1380,12 @@
             if (e.target === configOverlay) closeConfig();
         });
 
-        // Refresh
         $('btn-refresh').addEventListener('click', async () => {
             showToast('正在刷新列表...', 'warning');
-            // 清除服务端缓存
             try { await fetch('/api/refresh', { method: 'POST' }); } catch (_) {}
             fetchModelList();
         });
 
-        // Open file
         $('btn-open-file').addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
             const f = e.target.files?.[0];
@@ -1284,33 +1393,14 @@
             fileInput.value = '';
         });
 
-        // Search
         searchInput.addEventListener('input', () => renderModelList(searchInput.value));
 
-        // Toolbar
-        $('btn-reset-camera').addEventListener('click', resetCamera);
-        $('btn-fit-view').addEventListener('click', fitView);
+        // Topbar
         $('btn-screenshot').addEventListener('click', screenshot);
 
-        // Float buttons
-        $('btn-wireframe').addEventListener('click', function () {
-            showWireframe = !showWireframe;
-            this.classList.toggle('active', !showWireframe);
-            if (currentModel) applyWireframe(currentModel, showWireframe);
-        });
-
-        $('btn-grid').addEventListener('click', function () {
-            showGrid = !showGrid;
-            this.classList.toggle('active', !showGrid);
-            grid.visible = showGrid;
-            ground.visible = showGrid;
-        });
-
-        $('btn-auto-rotate').addEventListener('click', function () {
-            autoRotate = !autoRotate;
-            this.classList.toggle('active', autoRotate);
-            controls.autoRotate = autoRotate;
-        });
+        // Animation controls
+        $('btn-anim-play').addEventListener('click', playAnimation);
+        $('btn-anim-stop').addEventListener('click', stopAnimation);
 
         // Drag & Drop
         let dragCount = 0;
@@ -1343,41 +1433,26 @@
             if (e.target.tagName === 'INPUT') return;
             switch (e.key.toLowerCase()) {
                 case 'b': toggleSidebar(); break;
-                case 'r': resetCamera(); break;
                 case 's': screenshot(); break;
-                case 'w':
-                    showWireframe = !showWireframe;
-                    $('btn-wireframe').classList.toggle('active', !showWireframe);
-                    if (currentModel) applyWireframe(currentModel, showWireframe);
+                case ' ':
+                    e.preventDefault();
+                    if (isAnimating) stopAnimation(); else playAnimation();
                     break;
-                case 'g':
-                    showGrid = !showGrid;
-                    $('btn-grid').classList.toggle('active', !showGrid);
-                    grid.visible = showGrid;
-                    ground.visible = showGrid;
-                    break;
-                case 'a':
-                    autoRotate = !autoRotate;
-                    $('btn-auto-rotate').classList.toggle('active', autoRotate);
-                    controls.autoRotate = autoRotate;
-                    break;
-                case 'f': fitView(); break;
             }
         });
 
         // ============ RENDER ============
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
+            const delta = clock.getDelta();
+            if (mixer && isAnimating) mixer.update(delta);
             renderer.render(scene, camera);
         }
         animate();
 
         // ============ INIT ============
-        // Auto-load model list on start
         fetchModelList();
 
-        // URL param
         const urlParams = new URLSearchParams(location.search);
         const modelParam = urlParams.get('model');
         if (modelParam) {
@@ -1385,8 +1460,8 @@
             loadModel(modelParam, name);
         }
 
-        console.log('🚀 GLB 模型查看器 v2 已就绪');
-        console.log('   B=侧边栏 R=重置 S=截图 W=线框 G=网格 A=旋转 F=适配');
+        console.log('🚀 GLB 模型查看器 v3 已就绪');
+        console.log('   B=侧边栏 S=截图 空格=播放/停止动画');
     </script>
 </body>
 </html>
