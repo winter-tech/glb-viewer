@@ -907,15 +907,19 @@
         $('config-models-url').value = config.modelsUrl;
         $('config-base-path').value = config.basePath;
 
-        // ============ THREE.JS ============
+        // ============ THREE.JS SCENE ============
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color('#111118');
+        scene.background = new THREE.Color('#1a1a2e');
 
+        // Camera
         const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
         camera.position.set(0, 0, 5);
-        camera.lookAt(0, 0, 0);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            preserveDrawingBuffer: true
+        });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -925,33 +929,50 @@
         function resizeRenderer() {
             const w = container.clientWidth;
             const h = container.clientHeight;
-            camera.aspect = w / Math.max(h, 1);
+            if (w === 0 || h === 0) return;
+            camera.aspect = w / h;
             camera.updateProjectionMatrix();
             renderer.setSize(w, h);
         }
         resizeRenderer();
         window.addEventListener('resize', resizeRenderer);
 
-        // Lights - soft, even studio lighting
-        scene.add(new THREE.AmbientLight('#ffffff', 1.0));
-        const keyLight = new THREE.DirectionalLight('#ffffff', 2.0);
+        // ============ LIGHTS ============
+        // Ambient - base illumination
+        const ambientLight = new THREE.AmbientLight('#ffffff', 1.2);
+        scene.add(ambientLight);
+
+        // Key light - main directional from upper right
+        const keyLight = new THREE.DirectionalLight('#ffffff', 2.5);
         keyLight.position.set(5, 8, 5);
         scene.add(keyLight);
-        scene.add(new THREE.DirectionalLight('#b0c4de', 1.0)).position.set(-5, 3, -5);
-        scene.add(new THREE.DirectionalLight('#ffffff', 0.8)).position.set(0, -2, 5);
-        scene.add(new THREE.HemisphereLight('#b1e1ff', '#1a1a2e', 0.6));
 
-        // Pivot group - model is added here, we rotate/scale the pivot
+        // Fill light - softer from left
+        const fillLight = new THREE.DirectionalLight('#b0c4de', 1.0);
+        fillLight.position.set(-5, 3, -5);
+        scene.add(fillLight);
+
+        // Rim light - from below/behind for edge definition
+        const rimLight = new THREE.DirectionalLight('#ffffff', 0.8);
+        rimLight.position.set(0, -2, 5);
+        scene.add(rimLight);
+
+        // Hemisphere - sky/ground ambient
+        const hemiLight = new THREE.HemisphereLight('#b1e1ff', '#2a2a3e', 0.6);
+        scene.add(hemiLight);
+
+        // ============ PIVOT GROUP ============
+        // Model goes inside pivot; we rotate/scale the pivot for interaction
         const pivot = new THREE.Group();
         scene.add(pivot);
 
-        // Loaders
+        // ============ LOADERS ============
         const dracoLoader = new DRACOLoader();
         dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
         const gltfLoader = new GLTFLoader();
         gltfLoader.setDRACOLoader(dracoLoader);
 
-        // Environment map for realistic PBR reflections
+        // ============ ENVIRONMENT MAP ============
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         const envScene = new THREE.Scene();
         envScene.background = new THREE.Color('#a8c8e8');
@@ -1030,7 +1051,7 @@
             e.preventDefault();
             if (!currentModel) return;
             const factor = e.deltaY > 0 ? 0.93 : 1.07;
-            modelBaseScale = Math.max(0.1, Math.min(20, modelBaseScale * factor));
+            modelBaseScale = Math.max(0.05, Math.min(50, modelBaseScale * factor));
             pivot.scale.setScalar(modelBaseScale);
         }, { passive: false });
 
@@ -1043,7 +1064,6 @@
 
         function rotateModel(dx, dy) {
             if (!currentModel) return;
-            // Rotate around world Y for horizontal drag, world X for vertical drag
             const sensitivity = 0.006;
             const qY = new THREE.Quaternion().setFromAxisAngle(
                 new THREE.Vector3(0, 1, 0), dx * sensitivity
@@ -1055,7 +1075,7 @@
             pivot.quaternion.premultiply(qX);
         }
 
-        // ============ FUNCTIONS ============
+        // ============ UTILITY FUNCTIONS ============
         function showToast(msg, type = 'error') {
             toast.textContent = msg;
             toast.className = type === 'success' ? 'show success' : type === 'warning' ? 'show warning' : 'show';
@@ -1103,16 +1123,6 @@
             return { vertices, triangles, meshes };
         }
 
-        function computeBounding(model) {
-            const box = new THREE.Box3().setFromObject(model);
-            const center = new THREE.Vector3();
-            const size = new THREE.Vector3();
-            box.getCenter(center);
-            box.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            return { center, size, maxDim, radius: maxDim / 2 };
-        }
-
         function disposeModel(model) {
             model.traverse((c) => {
                 if (c.isMesh) {
@@ -1129,21 +1139,40 @@
         }
 
         function placeModel(model) {
-            const { center, size, maxDim } = computeBounding(model);
-            // Center the model within the pivot group
-            model.position.set(-center.x, -center.y, -center.z);
-            // Scale model so it fills ~70% of the viewport
-            // With FOV=45, distance=5, visible height at z=0 ≈ 2*5*tan(22.5°) ≈ 4.14
-            const viewHeight = 2 * 5 * Math.tan((45 / 2) * Math.PI / 180);
-            const targetSize = viewHeight * 0.7; // model fills 70% of view
-            const scale = maxDim > 0 ? targetSize / maxDim : 1;
+            // 1. Add model to pivot first (so world transforms are correct)
+            pivot.add(model);
+
+            // 2. Compute bounding box of the model in pivot's local space
+            const box = new THREE.Box3().setFromObject(model);
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            box.getCenter(center);
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            console.log('[placeModel] bbox size:', size.toArray(), 'maxDim:', maxDim, 'center:', center.toArray());
+
+            // 3. Offset model so its center is at pivot origin
+            // Model is a child of pivot. We need to offset it by -center in pivot-local space.
+            // But center is in pivot-local space already (since we called setFromObject after adding to pivot).
+            model.position.x -= center.x;
+            model.position.y -= center.y;
+            model.position.z -= center.z;
+
+            // 4. Scale so model fills ~70% of viewport height
+            // Camera at z=5, FOV=45: visible height at z=0 = 2 * 5 * tan(22.5°) ≈ 4.14
+            const camDist = camera.position.z;
+            const fovRad = camera.fov * Math.PI / 180;
+            const viewHeight = 2 * camDist * Math.tan(fovRad / 2);
+            const targetSize = viewHeight * 0.7;
+            const scale = maxDim > 0.001 ? targetSize / maxDim : 1;
+
+            console.log('[placeModel] viewHeight:', viewHeight, 'targetSize:', targetSize, 'scale:', scale);
+
             modelBaseScale = scale;
             pivot.scale.setScalar(scale);
-            // Reset rotation
             pivot.quaternion.identity();
             pivot.position.set(0, 0, 0);
-            // Add to pivot
-            pivot.add(model);
         }
 
         function screenshot() {
@@ -1157,7 +1186,6 @@
 
         // ============ ANIMATION ============
         function setupAnimations(gltf) {
-            // Clean up previous
             if (mixer) {
                 mixer.stopAllAction();
                 mixer = null;
@@ -1201,6 +1229,7 @@
             $('btn-anim-stop').classList.add('playing');
         }
 
+        // ============ MODEL LOADING ============
         function loadModel(url, name, size) {
             showLoading();
             gltfLoader.load(
@@ -1232,13 +1261,14 @@
                     $('info-size').textContent = fmtSize(size);
 
                     hideLoading();
+                    console.log('[loadModel] loaded:', name, 'scale:', modelBaseScale);
                 },
                 (p) => {
                     if (p.total > 0) loadingBar.style.width = Math.round(p.loaded / p.total * 100) + '%';
                 },
                 (err) => {
                     hideLoading();
-                    console.error(err);
+                    console.error('[loadModel] error:', err);
                     showToast('加载失败: ' + (err.message || '未知错误'));
                 }
             );
@@ -1433,7 +1463,7 @@
             }
         });
 
-        // ============ RENDER ============
+        // ============ RENDER LOOP ============
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
@@ -1452,7 +1482,7 @@
             loadModel(modelParam, name);
         }
 
-        console.log('🚀 GLB 模型查看器 v3 已就绪');
+        console.log('🚀 GLB 模型查看器 v4 已就绪');
         console.log('   B=侧边栏 S=截图 空格=播放/停止动画');
     </script>
 </body>
