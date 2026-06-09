@@ -912,15 +912,14 @@
         scene.background = new THREE.Color('#111118');
 
         const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-        camera.position.set(0, 0.8, 4);
+        camera.position.set(0, 0, 4);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMappingExposure = 1.0;
         container.appendChild(renderer.domElement);
 
         function resizeRenderer() {
@@ -933,23 +932,14 @@
         resizeRenderer();
         window.addEventListener('resize', resizeRenderer);
 
-        // Lights
-        scene.add(new THREE.AmbientLight('#ffffff', 0.6));
-        const keyLight = new THREE.DirectionalLight('#ffffff', 4);
+        // Lights - soft, even studio lighting
+        scene.add(new THREE.AmbientLight('#ffffff', 1.0));
+        const keyLight = new THREE.DirectionalLight('#ffffff', 2.0);
         keyLight.position.set(5, 8, 5);
-        keyLight.castShadow = true;
-        keyLight.shadow.mapSize.set(2048, 2048);
-        keyLight.shadow.camera.near = 0.5;
-        keyLight.shadow.camera.far = 50;
-        keyLight.shadow.camera.left = -10;
-        keyLight.shadow.camera.right = 10;
-        keyLight.shadow.camera.top = 10;
-        keyLight.shadow.camera.bottom = -10;
-        keyLight.shadow.bias = -0.0001;
         scene.add(keyLight);
-        scene.add(new THREE.DirectionalLight('#8ec8f2', 1.5)).position.set(-3, 2, -3);
-        scene.add(new THREE.DirectionalLight('#ffffff', 1.5)).position.set(0, 1, -5);
-        scene.add(new THREE.HemisphereLight('#b1e1ff', '#111118', 0.8));
+        scene.add(new THREE.DirectionalLight('#b0c4de', 1.0)).position.set(-5, 3, -5);
+        scene.add(new THREE.DirectionalLight('#ffffff', 0.8)).position.set(0, -2, 5);
+        scene.add(new THREE.HemisphereLight('#b1e1ff', '#1a1a2e', 0.6));
 
         // Pivot group - model is added here, we rotate/scale the pivot
         const pivot = new THREE.Group();
@@ -961,13 +951,19 @@
         const gltfLoader = new GLTFLoader();
         gltfLoader.setDRACOLoader(dracoLoader);
 
-        // Simple env map
+        // Environment map for realistic PBR reflections
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         const envScene = new THREE.Scene();
-        envScene.background = new THREE.Color('#87CEEB');
-        envScene.add(new THREE.DirectionalLight('#ffffff', 3)).position.set(0, 5, 0);
-        envScene.add(new THREE.AmbientLight('#ffffff', 1));
+        envScene.background = new THREE.Color('#a8c8e8');
+        const envLight1 = new THREE.DirectionalLight('#ffffff', 5);
+        envLight1.position.set(2, 5, 3);
+        envScene.add(envLight1);
+        const envLight2 = new THREE.DirectionalLight('#c8d8f0', 3);
+        envLight2.position.set(-3, 2, -1);
+        envScene.add(envLight2);
+        envScene.add(new THREE.AmbientLight('#ffffff', 2));
         scene.environment = pmremGenerator.fromScene(envScene, 0.04).texture;
+        pmremGenerator.dispose();
 
         // ============ POINTER INTERACTION ============
         let isDragging = false;
@@ -1145,13 +1141,6 @@
             pivot.position.set(0, 0, 0);
             // Add to pivot
             pivot.add(model);
-            // Enable shadows
-            model.traverse((c) => {
-                if (c.isMesh) {
-                    c.castShadow = true;
-                    c.receiveShadow = true;
-                }
-            });
         }
 
         function screenshot() {
