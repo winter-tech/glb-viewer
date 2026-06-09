@@ -18,6 +18,9 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev && npm cache clean --force
 
+# 安装 curl（健康检查需要）
+RUN apk add --no-cache curl
+
 # 复制应用文件
 COPY server.js ./
 COPY public/ ./public/
@@ -34,7 +37,7 @@ EXPOSE 3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
 # 启动
 CMD ["node", "server.js"]

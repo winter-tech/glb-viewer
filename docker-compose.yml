@@ -6,13 +6,16 @@
 #   2. docker compose up -d
 #   3. 浏览器访问 http://你的NAS_IP:8080
 #
-# 镜像会自动从 GitHub Container Registry 拉取
-# 无需本地构建、无需 Dockerfile
+# 方式一（推荐）: 直接拉取远程镜像，无需本地构建
+# 方式二: 若无法访问 GHCR，取消下方 build 注释，运行 docker compose up -d --build
 # ========================================
 
 services:
   glb-viewer:
     image: ghcr.io/winter-tech/glb-viewer:latest
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: glb-viewer
     restart: unless-stopped
     ports:
